@@ -34,7 +34,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3, is_connected/0]).
 
--export([insert_one/2, find_one/2]).
+-export([insert_one/2, insert/2, find_one/2]).
 
 -include("ejabberd.hrl").
 -include("logger.hrl").
@@ -42,6 +42,7 @@
 -record(state, {pid = self() :: pid()}).
 
 -define(MONGO_ID, <<"_id">>).
+-define(MONGO_N, <<"n">>).
 
 %%%===================================================================
 %%% API
@@ -78,7 +79,12 @@ insert_one(Col, Obj) ->
       {'EXIT', Err} ->
           ?ERROR_MSG("Error is happen ~p~n", [Err]),
           error;
-      {{true, _Count}, Status} ->
+      {{true, Count}, Status} ->
+          Number = case maps:get(?MONGO_N, Count) of 
+            {badmap, _MapN} -> 0;
+            {badkey, _KeyN} -> 0;
+            ValN -> ValN
+          end,
           case maps:get(?MONGO_ID, Status) of 
             {badmap, Map} ->
               ?ERROR_MSG("Insert operation is failed: bad map structure ~p~n", [Map]),
@@ -87,7 +93,33 @@ insert_one(Col, Obj) ->
               ?ERROR_MSG("Insert operation is failed: Key ~p doesn\'t exist ~n", [Key]),
               error;
             {Val} ->
-              {ok, Val}
+              case Number of 
+                1 -> {ok, Number, Status};
+                _ -> error
+              end
+          end;
+      S ->
+          ?ERROR_MSG("Unwaited response ~p~n", [S]),
+          error
+    end.
+
+insert(Col, Objs) ->
+    C = make_binary(Col),
+    case catch mc_worker_api:insert(get_random_pid(), C, Objs) of
+      {'EXIT', Err} ->
+          ?ERROR_MSG("Error is happen ~p~n", [Err]),
+          error;
+      {{true, Count}, Status} ->
+          Number = case maps:get(?MONGO_N, Count) of 
+            {badmap, _MapN} -> 0;
+            {badkey, _KeyN} -> 0;
+            ValN -> ValN
+          end,
+          if length(Objs) /= Number ->
+            ?ERROR_MSG("Insert operation is failed: Only ~p elements are inserted from ~p~n", [Number, length(Objs)]),
+            error;
+          true ->
+            {ok, Number, Status}
           end;
       S ->
           ?ERROR_MSG("Unwaited response ~p~n", [S]),
