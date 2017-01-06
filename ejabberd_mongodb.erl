@@ -34,7 +34,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3, is_connected/0]).
 
--export([insert_one/2, insert/2, find_one/2]).
+-export([insert_one/2, insert/2, find_one/2, find/2]).
 
 -include("ejabberd.hrl").
 -include("logger.hrl").
@@ -133,15 +133,37 @@ find_one(Col, Sel) ->
         ?ERROR_MSG("Error is happen ~p~n", [Err]),
         error;
       Status ->
-        case maps:get(?MONGO_ID, Status) of 
-          {badmap, Map} ->
-            ?ERROR_MSG("Find operation is failed: bad map structure ~p~n", [Map]),
-            error;
-          {badkey, Key} ->
-            ?ERROR_MSG("Find operation is failed: Key ~p doesn\'t exist ~n", [Key]),
-            error;
-          {Val} ->
-            {ok, Status}
+        if Status /= undefined ->
+          not_found;
+        true ->
+          case maps:get(?MONGO_ID, Status) of 
+            {badmap, Map} ->
+              ?ERROR_MSG("Find operation is failed: bad map structure ~p~n", [Map]),
+              error;
+            {badkey, Key} ->
+              ?ERROR_MSG("Find operation is failed: Key ~p doesn\'t exist ~n", [Key]),
+              error;
+            {Val} ->
+              {ok, Status}
+          end
+        end
+    end.
+
+find(Col, Sel) ->
+    C = make_binary(Col),
+    case catch mc_worker_api:find(get_random_pid(), C, Sel) of
+      {'EXIT', Err} ->
+        ?ERROR_MSG("Error is happen ~p~n", [Err]),
+        error;
+      {ok, OdjCur} ->
+        ObjFound = mc_cursor:rest(OdjCur),
+        {ok, ObjFound};
+      Status ->
+        if Status /= undefined ->
+          not_found;
+        true ->
+          ?ERROR_MSG("Unwaited response ~p~n", [Status]),
+          error
         end
     end.
 
