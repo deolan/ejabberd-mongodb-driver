@@ -34,7 +34,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3, is_connected/0]).
 
--export([insert_one/2, insert/2, find_one/2, find/2]).
+-export([insert_one/2, insert/2, find_one/2, find/2, 
+  delete_one/2, delete/2]).
 
 -include("ejabberd.hrl").
 -include("logger.hrl").
@@ -165,6 +166,45 @@ find(Col, Sel) ->
           ?ERROR_MSG("Unwaited response ~p~n", [Status]),
           error
         end
+    end.
+
+delete_one(Col, Sel) ->
+    C = make_binary(Col),
+    case catch mc_worker_api:delete_one(get_random_pid(), C, Sel) of
+      {'EXIT', Err} ->
+        ?ERROR_MSG("Error is happen ~p~n", [Err]),
+        error;
+      {true, Count} ->
+          Number = case maps:get(?MONGO_N, Count) of 
+            {badmap, _MapN} -> 0;
+            {badkey, _KeyN} -> 0;
+            ValN -> ValN
+          end,
+          case Number of 
+            1 -> {ok, Number};
+            _ -> error
+          end;
+      S ->
+          ?ERROR_MSG("Unwaited response ~p~n", [S]),
+          error
+    end.
+
+delete(Col, Sel) ->
+    C = make_binary(Col),
+    case catch mc_worker_api:delete(get_random_pid(), C, Sel) of
+      {'EXIT', Err} ->
+        ?ERROR_MSG("Error is happen ~p~n", [Err]),
+        error;
+      {true, Count} ->
+        Number = case maps:get(?MONGO_N, Count) of 
+          {badmap, _MapN} -> 0;
+          {badkey, _KeyN} -> 0;
+          ValN -> ValN
+        end,
+        {ok, Number};
+      S ->
+          ?ERROR_MSG("Unwaited response ~p~n", [S]),
+          error
     end.
 
 %%%===================================================================
