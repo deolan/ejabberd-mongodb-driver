@@ -35,7 +35,7 @@
          terminate/2, code_change/3, is_connected/0]).
 
 -export([insert_one/2, insert/2, find_one/2, find/2, 
-  update_one/3, delete_one/2, delete/2]).
+  update_one/3, update/3, delete_one/2, delete/2]).
 
 -include("ejabberd.hrl").
 -include("logger.hrl").
@@ -188,9 +188,41 @@ update_one(Col, Sel, Obj) ->
             ValNM -> ValNM
           end,
           if NumberModified /= Number ->
-            ?ERROR_MSG("Update operation is failed: Only ~p elements are updated from ~p~n", 
+            ?DEBUG("Update operation: Only ~p elements are updated from ~p~n", 
                         [NumberModified, Number]),
-            not_updated;
+            {ok, NumberModified};
+          true ->
+            case Number of 
+              0 -> not_found;
+              _ -> {ok, NumberModified}
+            end
+          end;
+      S ->
+        ?ERROR_MSG("Unwaited response ~p~n", [S]),
+        error    
+    end.
+
+update(Col, Sel, Obj) ->
+    C = make_binary(Col),
+    case catch mc_worker_api:update(get_random_pid(), C, Sel, Obj, false, true) of
+      {'EXIT', Err} ->
+        ?ERROR_MSG("Error is happen ~p~n", [Err]),
+        error;
+      {true, Count} ->
+          Number = case maps:get(?MONGO_N, Count) of 
+            {badmap, _MapN} -> 0;
+            {badkey, _KeyN} -> 0;
+            ValN -> ValN
+          end,
+          NumberModified = case maps:get(?MONGO_N_MODIFIED, Count) of 
+            {badmap, _MapNM} -> 0;
+            {badkey, _KeyNM} -> 0;
+            ValNM -> ValNM
+          end,
+          if NumberModified /= Number ->
+            ?DEBUG("Update operation: Only ~p elements are updated from ~p~n", 
+                        [NumberModified, Number]),
+            {ok, NumberModified};
           true ->
             case Number of 
               0 -> not_found;
