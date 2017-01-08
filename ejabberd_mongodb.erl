@@ -35,7 +35,7 @@
          terminate/2, code_change/3, is_connected/0]).
 
 -export([insert_one/2, insert/2, find_one/2, find/2, 
-  delete_one/2, delete/2]).
+  update_one/3, delete_one/2, delete/2]).
 
 -include("ejabberd.hrl").
 -include("logger.hrl").
@@ -44,6 +44,7 @@
 
 -define(MONGO_ID, <<"_id">>).
 -define(MONGO_N, <<"n">>).
+-define(MONGO_N_MODIFIED, <<"nModified">>).
 
 %%%===================================================================
 %%% API
@@ -117,7 +118,8 @@ insert(Col, Objs) ->
             ValN -> ValN
           end,
           if length(Objs) /= Number ->
-            ?ERROR_MSG("Insert operation is failed: Only ~p elements are inserted from ~p~n", [Number, length(Objs)]),
+            ?ERROR_MSG("Insert operation is failed: Only ~p elements are inserted from ~p~n", 
+                        [Number, length(Objs)]),
             error;
           true ->
             {ok, Number, Status}
@@ -166,6 +168,38 @@ find(Col, Sel) ->
           ?ERROR_MSG("Unwaited response ~p~n", [Status]),
           error
         end
+    end.
+
+update_one(Col, Sel, Obj) ->
+    C = make_binary(Col),
+    case catch mc_worker_api:update(get_random_pid(), C, Sel, Obj) of
+      {'EXIT', Err} ->
+        ?ERROR_MSG("Error is happen ~p~n", [Err]),
+        error;
+      {true, Count} ->
+          Number = case maps:get(?MONGO_N, Count) of 
+            {badmap, _MapN} -> 0;
+            {badkey, _KeyN} -> 0;
+            ValN -> ValN
+          end,
+          NumberModified = case maps:get(?MONGO_N_MODIFIED, Count) of 
+            {badmap, _MapNM} -> 0;
+            {badkey, _KeyNM} -> 0;
+            ValNM -> ValNM
+          end,
+          if NumberModified /= Number ->
+            ?ERROR_MSG("Update operation is failed: Only ~p elements are updated from ~p~n", 
+                        [NumberModified, Number]),
+            not_updated;
+          true ->
+            case Number of 
+              0 -> not_found;
+              _ -> {ok, NumberModified}
+            end
+          end;
+      S ->
+        ?ERROR_MSG("Unwaited response ~p~n", [S]),
+        error    
     end.
 
 delete_one(Col, Sel) ->
@@ -263,4 +297,3 @@ get_mongodb_pid(PoolPid) ->
 	{'EXIT', Err} ->
 	    throw({error, Err})
     end.
-
