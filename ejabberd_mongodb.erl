@@ -137,8 +137,6 @@ find_one(Col, Sel) ->
         error;
       Status ->
         if Status /= undefined ->
-          not_found;
-        true ->
           case maps:get(?MONGO_ID, Status) of 
             {badmap, Map} ->
               ?ERROR_MSG("Find operation is failed: bad map structure ~p~n", [Map]),
@@ -148,7 +146,10 @@ find_one(Col, Sel) ->
               error;
             {Val} ->
               {ok, Status}
-          end
+          end;
+        true ->
+          ?ERROR_MSG("Find operation is failed ~n", []),
+          not_found
         end
     end.
 
