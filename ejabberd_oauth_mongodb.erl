@@ -85,7 +85,16 @@ lookup(Token) ->
             {error, notfound}
         end.
 
-clean(_TS) ->
-% TODO
-    ok.
+clean(TS) ->
+    Map = #{<<"expire">> => #{<<"$le">> => TS}},
+    case ejabberd_mongodb:delete(oauth_token, Map) of
+       {ok, Val} ->
+           ok;
+       error ->
+           error;
+       not_found ->
+           ok;
+       Val ->
+           ok  
+       end.
     
