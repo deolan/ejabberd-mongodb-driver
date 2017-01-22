@@ -35,7 +35,7 @@
          terminate/2, code_change/3, is_connected/0]).
 
 -export([insert_one/2, insert/2, find_one/2, find/2, 
-  update_one/3, update/3, delete_one/2, delete/2]).
+  update_one/3, update/3, delete_one/2, delete/2, count/2]).
 
 -include("ejabberd.hrl").
 -include("logger.hrl").
@@ -272,6 +272,16 @@ delete(Col, Sel) ->
       S ->
           ?ERROR_MSG("Unwaited response ~p~n", [S]),
           error
+    end.
+
+count(Col, Sel) ->
+    C = make_binary(Col),
+    case catch mc_worker_api:count(get_random_pid(), C, Sel) of
+      {'EXIT', Err} ->
+        ?ERROR_MSG("Error is happen ~p~n", [Err]),
+        error;
+      Number ->
+        {ok, Number}
     end.
 
 %%%===================================================================
