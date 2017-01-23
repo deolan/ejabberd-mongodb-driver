@@ -80,24 +80,20 @@ check_password(User, AuthzId, Server, Password) ->
         Map = #{<<"us">> => SJID},
         case ejabberd_mongodb:find_one(passwd, Map) of
           {ok, PassObj} ->
-            StoredKey = case maps:get(<<"password">>, PassObj) of 
+            StoredKey = case maps:get(<<"password">>, PassObj, <<"">>) of 
               {badmap, _} -> <<"">>;
-              {badkey, _} -> <<"">>;
               ValP -> ValP
             end,
-            ServerKey = case maps:get(<<"serverkey">>, PassObj) of 
+            ServerKey = case maps:get(<<"serverkey">>, PassObj, <<"">>) of 
               {badmap, _} -> <<"">>;
-              {badkey, _} -> <<"">>;
               ValSK -> ValSK
             end,
-            Salt = case maps:get(<<"salt">>, PassObj) of 
+            Salt = case maps:get(<<"salt">>, PassObj, <<"">>) of 
               {badmap, _} -> <<"">>;
-              {badkey, _} -> <<"">>;
               ValS -> ValS
             end,
-            IterationCount = case maps:get(<<"iterationcount">>, PassObj) of 
+            IterationCount = case maps:get(<<"iterationcount">>, PassObj, 0) of 
               {badmap, _} -> <<"">>;
-              {badkey, _} -> <<"">>;
               ValI -> ValI
             end,
             case ServerKey of
@@ -125,14 +121,12 @@ check_password(User, AuthzId, Server, Password, Digest,
         Map = #{<<"us">> => SJID},
         case ejabberd_mongodb:find_one(passwd, Map) of
           {ok, PassObj} ->
-            StoredKey = case maps:get(<<"password">>, PassObj) of 
+            StoredKey = case maps:get(<<"password">>, PassObj, <<"">>) of 
               {badmap, _} -> <<"">>;
-              {badkey, _} -> <<"">>;
               ValP -> ValP
             end,
-            ServerKey = case maps:get(<<"serverkey">>, PassObj) of 
+            ServerKey = case maps:get(<<"serverkey">>, PassObj, <<"">>) of 
               {badmap, _} -> <<"">>;
-              {badkey, _} -> <<"">>;
               ValSK -> ValSK
             end,
             case ServerKey of
@@ -261,27 +255,23 @@ get_password(User, Server) ->
           SJID = jid:to_string({LUser, LServer, <<"">>}),
           Map = #{<<"us">> => SJID},
           case ejabberd_mongodb:find_one(passwd, Map) of
-            {ok, Password} ->
-              StoredKey = case maps:get(<<"password">>, Password) of 
+            {ok, PassObj} ->
+              StoredKey = case maps:get(<<"password">>, PassObj, <<"">>) of 
                 {badmap, _} -> <<"">>;
-                {badkey, _} -> <<"">>;
                 ValP -> ValP
               end,
               case is_scrammed() of
                 true ->
-                  ServerKey = case maps:get(<<"serverkey">>, Password) of 
+                  ServerKey = case maps:get(<<"serverkey">>, PassObj, <<"">>) of 
                     {badmap, _} -> <<"">>;
-                    {badkey, _} -> <<"">>;
                     ValSK -> ValSK
                   end,
-                  Salt = case maps:get(<<"salt">>, Password) of 
+                  Salt = case maps:get(<<"salt">>, PassObj, <<"">>) of 
                     {badmap, _} -> <<"">>;
-                    {badkey, _} -> <<"">>;
                     ValS -> ValS
                   end,
-                  IterationCount = case maps:get(<<"iterationcount">>, Password) of 
+                  IterationCount = case maps:get(<<"iterationcount">>, PassObj, 0) of 
                     {badmap, _} -> <<"">>;
-                    {badkey, _} -> <<"">>;
                     ValI -> ValI
                   end,
                   {jlib:decode_base64(StoredKey),
@@ -309,10 +299,9 @@ get_password_s(User, Server) ->
           SJID = jid:to_string({LUser, LServer, <<"">>}),
           Map = #{<<"us">> => SJID},
           case ejabberd_mongodb:find_one(passwd, Map) of
-            {ok, Password} ->
-              StoredKey = case maps:get(<<"password">>, Password) of 
+            {ok, PassObj} ->
+              StoredKey = case maps:get(<<"password">>, PassObj, <<"">>) of 
                 {badmap, _} -> <<"">>;
-                {badkey, _} -> <<"">>;
                 ValP -> ValP
               end,
               case is_scrammed() of
@@ -333,16 +322,12 @@ is_user_exists(User, Server) ->
     LServer = jid:nameprep(Server),
     SJID = jid:to_string({LUser, LServer, <<"">>}),
     Map = #{<<"us">> => SJID},
-    ?INFO_MSG("!!! 030303 ~p~n", [User]),
     case ejabberd_mongodb:find_one(passwd, Map) of 
         {ok, _User} ->
-          ?INFO_MSG("!!! 0303031 ~p~n", [User]),
             true;
         error ->
-            ?INFO_MSG("!!! 030302 ~p~n", [User]),
             false;
         not_found ->
-          ?INFO_MSG("!!! 0303033 ~p~n", [User]),
             false
         end.
 
