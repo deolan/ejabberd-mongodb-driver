@@ -53,24 +53,20 @@ lookup(Token) ->
     Map = #{<<"token">> => Token},
     case ejabberd_mongodb:find_one(oauth_token, Map) of
         {ok, OauthToken} ->
-            SJID = case maps:get(<<"us">>, OauthToken) of 
+            SJID = case maps:get(<<"us">>, OauthToken, <<"">>) of 
             {badmap, _} -> <<"">>;
-            {badkey, _} -> <<"">>;
             ValJid -> ValJid
             end,
-            Token = case maps:get(<<"token">>, OauthToken) of 
+            Token = case maps:get(<<"token">>, OauthToken, <<"">>) of 
             {badmap, _} -> <<"">>;
-            {badkey, _} -> <<"">>;
             ValT -> ValT
             end,
-            Scope = case maps:get(<<"scope">>, OauthToken) of 
+            Scope = case maps:get(<<"scope">>, OauthToken, <<"">>) of 
             {badmap, _} -> <<"">>;
-            {badkey, _} -> <<"">>;
             ValS -> ValS
             end,
-            Expire = case maps:get(<<"expire">>, OauthToken) of 
+            Expire = case maps:get(<<"expire">>, OauthToken, <<"">>) of 
             {badmap, _} -> <<"">>;
-            {badkey, _} -> <<"">>;
             ValE -> ValE
             end,
             JID = jid:from_string(SJID),
