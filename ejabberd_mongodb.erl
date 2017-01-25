@@ -79,7 +79,7 @@ insert_one(Col, Obj) ->
     C = make_binary(Col),
     case catch mc_worker_api:insert(get_random_pid(), C, Obj) of
       {'EXIT', Err} ->
-          ?ERROR_MSG("Error is happen ~p~n", [Err]),
+          ?DEBUG("Error is happen ~p~n", [Err]),
           error;
       {{true, Count}, Status} ->
           Number = case maps:get(?MONGO_N, Count) of 
@@ -89,10 +89,10 @@ insert_one(Col, Obj) ->
           end,
           case maps:get(?MONGO_ID, Status) of 
             {badmap, Map} ->
-              ?ERROR_MSG("Insert operation is failed: bad map structure ~p~n", [Map]),
+              ?DEBUG("Insert operation is failed: bad map structure ~p~n", [Map]),
               error;
             {badkey, Key} ->
-              ?ERROR_MSG("Insert operation is failed: Key ~p doesn\'t exist ~n", [Key]),
+              ?DEBUG("Insert operation is failed: Key ~p doesn\'t exist ~n", [Key]),
               error;
             {Val} ->
               case Number of 
@@ -101,7 +101,7 @@ insert_one(Col, Obj) ->
               end
           end;
       S ->
-          ?ERROR_MSG("Unwaited response ~p~n", [S]),
+          ?DEBUG("Unwaited response ~p~n", [S]),
           error
     end.
 
@@ -109,7 +109,7 @@ insert(Col, Objs) ->
     C = make_binary(Col),
     case catch mc_worker_api:insert(get_random_pid(), C, Objs) of
       {'EXIT', Err} ->
-          ?ERROR_MSG("Error is happen ~p~n", [Err]),
+          ?DEBUG("Error is happen ~p~n", [Err]),
           error;
       {{true, Count}, Status} ->
           Number = case maps:get(?MONGO_N, Count) of 
@@ -118,14 +118,14 @@ insert(Col, Objs) ->
             ValN -> ValN
           end,
           if length(Objs) /= Number ->
-            ?ERROR_MSG("Insert operation is failed: Only ~p elements are inserted from ~p~n", 
+            ?DEBUG("Insert operation is failed: Only ~p elements are inserted from ~p~n", 
                         [Number, length(Objs)]),
             error;
           true ->
             {ok, Number, Status}
           end;
       S ->
-          ?ERROR_MSG("Unwaited response ~p~n", [S]),
+          ?DEBUG("Unwaited response ~p~n", [S]),
           error
     end.
 
@@ -133,22 +133,22 @@ find_one(Col, Sel) ->
     C = make_binary(Col),
     case catch mc_worker_api:find_one(get_random_pid(), C, Sel) of
       {'EXIT', Err} ->
-        ?ERROR_MSG("Error is happen ~p~n", [Err]),
+        ?DEBUG("Error is happen ~p~n", [Err]),
         error;
       Status ->
         if Status /= undefined ->
           case maps:get(?MONGO_ID, Status) of 
             {badmap, Map} ->
-              ?ERROR_MSG("Find operation is failed: bad map structure ~p~n", [Map]),
+              ?DEBUG("Find operation is failed: bad map structure ~p~n", [Map]),
               error;
             {badkey, Key} ->
-              ?ERROR_MSG("Find operation is failed: Key ~p doesn\'t exist ~n", [Key]),
+              ?DEBUG("Find operation is failed: Key ~p doesn\'t exist ~n", [Key]),
               error;
             {Val} ->
               {ok, Status}
           end;
         true ->
-          ?ERROR_MSG("Find operation is failed ~n", []),
+          ?DEBUG("Find operation is failed ~n", []),
           not_found
         end
     end.
@@ -157,7 +157,7 @@ find(Col, Sel) ->
     C = make_binary(Col),
     case catch mc_worker_api:find(get_random_pid(), C, Sel) of
       {'EXIT', Err} ->
-        ?ERROR_MSG("Error is happen ~p~n", [Err]),
+        ?DEBUG("Error is happen ~p~n", [Err]),
         error;
       {ok, OdjCur} ->
         ObjFound = mc_cursor:rest(OdjCur),
@@ -166,7 +166,7 @@ find(Col, Sel) ->
         if Status /= undefined ->
           not_found;
         true ->
-          ?ERROR_MSG("Unwaited response ~p~n", [Status]),
+          ?DEBUG("Unwaited response ~p~n", [Status]),
           error
         end
     end.
@@ -175,7 +175,7 @@ update_one(Col, Sel, Obj) ->
     C = make_binary(Col),
     case catch mc_worker_api:update(get_random_pid(), C, Sel, Obj) of
       {'EXIT', Err} ->
-        ?ERROR_MSG("Error is happen ~p~n", [Err]),
+        ?DEBUG("Error is happen ~p~n", [Err]),
         error;
       {true, Count} ->
           Number = case maps:get(?MONGO_N, Count) of 
@@ -199,7 +199,7 @@ update_one(Col, Sel, Obj) ->
             end
           end;
       S ->
-        ?ERROR_MSG("Unwaited response ~p~n", [S]),
+        ?DEBUG("Unwaited response ~p~n", [S]),
         error    
     end.
 
@@ -207,7 +207,7 @@ update(Col, Sel, Obj) ->
     C = make_binary(Col),
     case catch mc_worker_api:update(get_random_pid(), C, Sel, Obj, false, true) of
       {'EXIT', Err} ->
-        ?ERROR_MSG("Error is happen ~p~n", [Err]),
+        ?DEBUG("Error is happen ~p~n", [Err]),
         error;
       {true, Count} ->
           Number = case maps:get(?MONGO_N, Count) of 
@@ -231,7 +231,7 @@ update(Col, Sel, Obj) ->
             end
           end;
       S ->
-        ?ERROR_MSG("Unwaited response ~p~n", [S]),
+        ?DEBUG("Unwaited response ~p~n", [S]),
         error    
     end.
 
@@ -239,7 +239,7 @@ delete_one(Col, Sel) ->
     C = make_binary(Col),
     case catch mc_worker_api:delete_one(get_random_pid(), C, Sel) of
       {'EXIT', Err} ->
-        ?ERROR_MSG("Error is happen ~p~n", [Err]),
+        ?DEBUG("Error is happen ~p~n", [Err]),
         error;
       {true, Count} ->
           Number = case maps:get(?MONGO_N, Count) of 
@@ -252,7 +252,7 @@ delete_one(Col, Sel) ->
             _ -> error
           end;
       S ->
-          ?ERROR_MSG("Unwaited response ~p~n", [S]),
+          ?DEBUG("Unwaited response ~p~n", [S]),
           error
     end.
 
@@ -260,7 +260,7 @@ delete(Col, Sel) ->
     C = make_binary(Col),
     case catch mc_worker_api:delete(get_random_pid(), C, Sel) of
       {'EXIT', Err} ->
-        ?ERROR_MSG("Error is happen ~p~n", [Err]),
+        ?DEBUG("Error is happen ~p~n", [Err]),
         error;
       {true, Count} ->
         Number = case maps:get(?MONGO_N, Count) of 
@@ -270,7 +270,7 @@ delete(Col, Sel) ->
         end,
         {ok, Number};
       S ->
-          ?ERROR_MSG("Unwaited response ~p~n", [S]),
+          ?DEBUG("Unwaited response ~p~n", [S]),
           error
     end.
 
@@ -278,7 +278,7 @@ count(Col, Sel) ->
     C = make_binary(Col),
     case catch mc_worker_api:count(get_random_pid(), C, Sel) of
       {'EXIT', Err} ->
-        ?ERROR_MSG("Error is happen ~p~n", [Err]),
+        ?DEBUG("Error is happen ~p~n", [Err]),
         error;
       Number ->
         {ok, Number}
