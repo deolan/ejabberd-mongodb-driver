@@ -40,7 +40,7 @@
 -define(DEFAULT_MONGODB_START_INTERVAL, 30). % 30 seconds
 -define(DEFAULT_MONGODB_HOST, "127.0.0.1").
 -define(DEFAULT_MONGODB_PORT, 27017).
--define(DEFAULT_MONGODB_DATABASE, <<"test">>).
+-define(DEFAULT_MONGODB_DATABASE, <<"ejabberd">>).
 
 % time to wait for the supervisor to start its child before returning
 % a timeout error to the request
@@ -162,7 +162,7 @@ get_mongodb_database() ->
     ejabberd_config:get_option(
       mongodb_database,
       fun(S) ->
-        binary_to_list(iolist_to_binary(S))
+        iolist_to_binary(S)
       end, ?DEFAULT_MONGODB_DATABASE).
 
 get_mongodb_username() ->
@@ -210,10 +210,10 @@ opt_type(mongodb_port) -> fun (_) -> true end;
 opt_type(mongodb_server) -> fun (_) -> true end;
 opt_type(mongodb_start_interval) ->
     fun (N) when is_integer(N), N >= 1 -> N end;
-opt_type(mongodb_cacertfile) -> fun iolist_to_binary/1;
-opt_type(mongodb_database) -> fun iolist_to_binary/1;
-opt_type(mongodb_username) -> fun iolist_to_binary/1;
-opt_type(mongodb_password) -> fun iolist_to_binary/1;
+opt_type(mongodb_cacertfile) -> fun(B) when is_binary(B) -> B end;
+opt_type(mongodb_database) -> fun(B) when is_binary(B) -> B end;
+opt_type(mongodb_username) -> fun(B) when is_binary(B) -> B end;
+opt_type(mongodb_password) -> fun(B) when is_binary(B) -> B end;
 opt_type(_) ->
     [modules, mongodb_pool_size, mongodb_port, mongodb_server,
      mongodb_start_interval, mongodb_cacertfile, mongodb_database, 
