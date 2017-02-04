@@ -107,21 +107,18 @@ init([]) ->
     StartInterval = get_start_interval(),
     Server = get_mongodb_server(),
     Port = get_mongodb_port(),
-    CACertFile = get_mongodb_cacertfile(),
     Database = get_mongodb_database(),
     Username = get_mongodb_username(),
     Password = get_mongodb_password(),
     Options = lists:filter(
 		fun(X) -> X /= nil end,
-		[auto_reconnect,
-		 {keepalive, true},
-		 if CACertFile /= nil -> {cacertfile ,CACertFile};
-		    true -> nil
-		 end,
-		 if (Username /= nil) and (Password /= nil) ->
-			 {credentials, Username, Password};
-		    true -> nil
-		 end
+		[
+     if Username /= nil -> {login, Username};
+        true -> nil
+     end,
+     if Password /= nil -> {password, Password};
+        true -> nil
+     end
 		]),
     {ok, {{one_for_one, PoolSize*10, 1},
 	  lists:map(
@@ -151,13 +148,6 @@ get_mongodb_server() ->
 	      binary_to_list(iolist_to_binary(S))
       end, ?DEFAULT_MONGODB_HOST).
 
-get_mongodb_cacertfile() ->
-    ejabberd_config:get_option(
-      mongodb_cacertfile,
-      fun(S) ->
-	      binary_to_list(iolist_to_binary(S))
-      end, nil).
-
 get_mongodb_database() ->
     ejabberd_config:get_option(
       mongodb_database,
@@ -169,14 +159,14 @@ get_mongodb_username() ->
     ejabberd_config:get_option(
       mongodb_username,
       fun(S) ->
-	      binary_to_list(iolist_to_binary(S))
+	      iolist_to_binary(S)
       end, nil).
 
 get_mongodb_password() ->
     ejabberd_config:get_option(
       mongodb_password,
       fun(S) ->
-	      binary_to_list(iolist_to_binary(S))
+	      iolist_to_binary(S)
       end, nil).
 
 get_mongodb_port() ->
@@ -210,11 +200,10 @@ opt_type(mongodb_port) -> fun (_) -> true end;
 opt_type(mongodb_server) -> fun (_) -> true end;
 opt_type(mongodb_start_interval) ->
     fun (N) when is_integer(N), N >= 1 -> N end;
-opt_type(mongodb_cacertfile) -> fun(B) when is_binary(B) -> B end;
 opt_type(mongodb_database) -> fun(B) when is_binary(B) -> B end;
 opt_type(mongodb_username) -> fun(B) when is_binary(B) -> B end;
 opt_type(mongodb_password) -> fun(B) when is_binary(B) -> B end;
 opt_type(_) ->
     [modules, mongodb_pool_size, mongodb_port, mongodb_server,
-     mongodb_start_interval, mongodb_cacertfile, mongodb_database, 
+     mongodb_start_interval, mongodb_database, 
      mongodb_username, mongodb_password].

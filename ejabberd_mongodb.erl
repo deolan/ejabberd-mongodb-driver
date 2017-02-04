@@ -288,8 +288,9 @@ count(Col, Sel) ->
 %%% gen_server API
 %%%===================================================================
 %% @private
-init([Server, Port, Database, _Options]) ->
-    case mc_worker_api:connect([{database, Database}, {host, Server}, {port, Port}]) of
+init([Server, Port, Database, Options]) ->
+    Opts = [{database, Database}, {host, Server}, {port, Port}] ++ Options,
+    case mc_worker_api:connect(Opts) of
         {ok, Pid} ->
             erlang:monitor(process, Pid),
             {ok, #state{pid = Pid}};
