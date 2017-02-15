@@ -27,19 +27,24 @@
 
 -author('alexey@process-one.net').
 
--export([start/1, stop/0, mech_new/4, mech_step/2, parse/1]).
+-export([start/1, stop/0, mech_new/4, mech_step/2, parse/1, format_error/1]).
 
 -behaviour(cyrsasl).
 
 -record(state, {host}).
-
--include("logger.hrl").
+-type error_reason() :: parser_failed | not_authorized.
+-export_type([error_reason/0]).
 
 start(_Opts) ->
-    cyrsasl:register_mechanism(<<"X-OAUTH2">>, ?MODULE, plain),
-    ok.
+    cyrsasl:register_mechanism(<<"X-OAUTH2">>, ?MODULE, plain).
 
 stop() -> ok.
+
+-spec format_error(error_reason()) -> {atom(), binary()}.
+format_error(parser_failed) ->
+    {'bad-protocol', <<"Response decoding failed">>};
+format_error(not_authorized) ->
+    {'not-authorized', <<"Invalid token">>}.
 
 mech_new(Host, _GetPassword, _CheckPassword, _CheckPasswordDigest) ->
     {ok, #state{host = Host}}.
