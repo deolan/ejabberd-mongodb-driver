@@ -26,22 +26,17 @@
 
 -compile([{parse_transform, ejabberd_sql_pt}]).
 
--behaviour(ejabberd_config).
-
 -author('andrei.leontev@protonmail.ch').
 
 -behaviour(ejabberd_auth).
 
 %% External exports
--export([start/1, stop/1, set_password/3, check_password/4,
-   check_password/6, try_register/3,
-   dirty_get_registered_users/0, get_vh_registered_users/1,
-   get_vh_registered_users/2,
-   get_vh_registered_users_number/1,
-   get_vh_registered_users_number/2, get_password/2,
-   get_password_s/2, is_user_exists/2, remove_user/2,
-   remove_user/3, store_type/1, export/1, import/2,
-   plain_password_required/1, opt_type/1]).
+-export([start/1, stop/1, set_password/3, try_register/3,
+   get_users/2, count_users/2, 
+   get_password/2,
+   remove_user/2, store_type/1, export/1, import/2,
+   plain_password_required/1]).
+
 -export([passwd_schema/0]).
 
 -include("ejabberd.hrl").
@@ -67,91 +62,6 @@ store_type(Server) ->
 
 passwd_schema() ->
     {record_info(fields, passwd), #passwd{}}.
-
-check_password(User, AuthzId, Server, Password) ->
-    if AuthzId /= <<>> andalso AuthzId /= User ->
-        false;
-    true ->
-        LUser = jid:nodeprep(User),
-        LServer = jid:nameprep(Server),
-        SJID = jid:to_string({LUser, LServer, <<"">>}),
-        Map = #{<<"us">> => SJID},
-        case ejabberd_mongodb:find_one(passwd, Map) of
-          {ok, PassObj} ->
-            StoredKey = case maps:get(<<"password">>, PassObj, <<"">>) of 
-              {badmap, _} -> <<"">>;
-              ValP -> ValP
-            end,
-            ServerKey = case maps:get(<<"serverkey">>, PassObj, <<"">>) of 
-              {badmap, _} -> <<"">>;
-              ValSK -> ValSK
-            end,
-            Salt = case maps:get(<<"salt">>, PassObj, <<"">>) of 
-              {badmap, _} -> <<"">>;
-              ValS -> ValS
-            end,
-            IterationCount = case maps:get(<<"iterationcount">>, PassObj, 0) of 
-              {badmap, _} -> <<"">>;
-              ValI -> ValI
-            end,
-            case ServerKey of
-              <<"">> -> StoredKey /= <<"">>;
-              _Val -> is_password_scram_valid(Password, #scram{storedkey = StoredKey,
-                                       serverkey = ServerKey,
-                                       salt = Salt,
-                                       iterationcount = IterationCount})
-            end;
-        error ->
-            false;
-        not_found ->
-            false
-        end
-    end.
-
-check_password(User, AuthzId, Server, Password, Digest,
-         DigestGen) ->
-    if AuthzId /= <<>> andalso AuthzId /= User ->
-        false;
-    true ->
-        LUser = jid:nodeprep(User),
-        LServer = jid:nameprep(Server),
-        SJID = jid:to_string({LUser, LServer, <<"">>}),
-        Map = #{<<"us">> => SJID},
-        case ejabberd_mongodb:find_one(passwd, Map) of
-          {ok, PassObj} ->
-            StoredKey = case maps:get(<<"password">>, PassObj, <<"">>) of 
-              {badmap, _} -> <<"">>;
-              ValP -> ValP
-            end,
-            ServerKey = case maps:get(<<"serverkey">>, PassObj, <<"">>) of 
-              {badmap, _} -> <<"">>;
-              ValSK -> ValSK
-            end,
-            case ServerKey of
-              <<"">> -> 
-                DigRes = if Digest /= <<"">> ->
-                  Digest == DigestGen(StoredKey);
-                  true -> false
-                end,
-                if DigRes -> true;
-                  true -> (StoredKey == Password) and (Password /= <<"">>)
-                end;
-              _Val -> 
-                Passwd = jlib:decode_base64(StoredKey),
-                DigRes = if Digest /= <<"">> ->
-                  Digest == DigestGen(Passwd);
-                  true -> false
-                end,
-                if DigRes -> true;
-                  true -> (Passwd == Password) and (Password /= <<"">>)
-                end
-            end;
-        error ->
-            false;
-        not_found ->
-            false
-        end
-    end.
 
 set_password(User, Server, Password) ->
     LUser = jid:nodeprep(User),
@@ -182,7 +92,7 @@ set_password(User, Server, Password) ->
               not_updated ->
                 {error, not_updated};
               _ ->
-                {error, error}
+                {error, db_failure}
             end
     end.
 
@@ -213,39 +123,16 @@ try_register(User, Server, Password) ->
             {ok, _N, _Id} ->
               {atomic, ok};
             error ->
-              {atomic, error}
+              {error, db_failure}
             end
     end.
 
-dirty_get_registered_users() ->
-    lists:flatmap(
-      fun(Server) ->
-              get_vh_registered_users(Server)
-      end, ejabberd_config:get_vh_by_auth_method(riak)).
 
-get_vh_registered_users(Server) ->
-    LServer = jid:nameprep(Server),
-    case ejabberd_riak:get_keys_by_index(passwd, <<"host">>, LServer) of
-        {ok, Users} ->
-            Users;
-        _ ->
-            []
-    end.
+get_users(_Server, _) ->
+    [].
 
-get_vh_registered_users(Server, _) ->
-    get_vh_registered_users(Server).
-
-get_vh_registered_users_number(Server) ->
-    LServer = jid:nameprep(Server),
-    case ejabberd_riak:count_by_index(passwd, <<"host">>, LServer) of
-        {ok, N} ->
-            N;
-        _ ->
-            0
-    end.
-
-get_vh_registered_users_number(Server, _) ->
-    get_vh_registered_users_number(Server).
+count_users(_Server, _) ->
+    0.
 
 get_password(User, Server) ->
     LUser = jid:nodeprep(User),
@@ -291,49 +178,6 @@ get_password(User, Server) ->
           end
     end.
 
-get_password_s(User, Server) ->
-    LServer = jid:nameprep(Server),
-    LUser = jid:nodeprep(User),
-    if (LUser == error) or (LServer == error) ->
-            <<"">>;
-       (LUser == <<>>) or (LServer == <<>>) ->
-            <<"">>;
-       true ->
-          SJID = jid:to_string({LUser, LServer, <<"">>}),
-          Map = #{<<"us">> => SJID},
-          case ejabberd_mongodb:find_one(passwd, Map) of
-            {ok, PassObj} ->
-              StoredKey = case maps:get(<<"password">>, PassObj, <<"">>) of 
-                {badmap, _} -> <<"">>;
-                ValP -> ValP
-              end,
-              case is_scrammed() of
-                true ->
-                  <<"">>;
-                false ->
-                  {StoredKey}
-              end;
-          error ->
-              <<"">>;
-          not_found ->
-              <<"">>
-          end
-    end.
-
-is_user_exists(User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    SJID = jid:to_string({LUser, LServer, <<"">>}),
-    Map = #{<<"us">> => SJID},
-    case ejabberd_mongodb:find_one(passwd, Map) of 
-        {ok, _User} ->
-            true;
-        error ->
-            false;
-        not_found ->
-            false
-        end.
-
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
@@ -343,31 +187,12 @@ remove_user(User, Server) ->
        {ok, _Val} ->
            ok;
        error ->
-           error;
+           {error, db_failure};
        not_found ->
            ok;
        _ ->
-           ok  
+           {error, db_failure}  
        end.
-
-remove_user(User, Server, Password) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    case ejabberd_riak:get(passwd, passwd_schema(), {LUser, LServer}) of
-        {ok, #passwd{password = Password}}
-          when is_binary(Password) ->
-            ejabberd_riak:delete(passwd, {LUser, LServer}),
-            ok;
-        {ok, #passwd{password = Scram}}
-          when is_record(Scram, scram) ->
-            case is_password_scram_valid(Password, Scram) of
-                true ->
-                    ejabberd_riak:delete(passwd, {LUser, LServer}),
-                    ok;
-                false -> not_allowed
-            end;
-        _ -> not_exists
-    end.
 
 %%%
 %%% SCRAM
@@ -422,6 +247,3 @@ export(_Server) ->
 import(LServer, [LUser, Password, _TimeStamp]) ->
     Passwd = #passwd{us = {LUser, LServer}, password = Password},
     ejabberd_riak:put(Passwd, passwd_schema(), [{'2i', [{<<"host">>, LServer}]}]).
-
-opt_type(auth_password_format) -> fun (V) -> V end;
-opt_type(_) -> [auth_password_format].
