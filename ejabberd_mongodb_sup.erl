@@ -26,12 +26,13 @@
 
 -module(ejabberd_mongodb_sup).
 
+-behaviour(supervisor).
 -behaviour(ejabberd_config).
 -author('andrei.leontev@protonmail.ch').
 
 -export([start/0, start_link/0, init/1, get_pids/0,
-	 transform_options/1, get_random_pid/0, get_random_pid/1,
-	 opt_type/1]).
+	 transform_options/1, get_random_pid/0,
+	 host_up/1, config_reloaded/0, opt_type/1]).
 
 -include("ejabberd.hrl").
 -include("logger.hrl").
@@ -55,30 +56,63 @@ start() ->
       ejabberd:start_app(bson),
       ejabberd:start_app(crypto),
 	    ejabberd:start_app(mongodb),
-            do_start();
+      do_start();
 	false ->
 	    ok
     end.
 
+host_up(Host) ->
+    case is_mongodb_configured(Host) of
+  true ->
+      ejabberd:start_app(mongodb),
+      lists:foreach(
+        fun(Spec) ->
+          supervisor:start_child(?MODULE, Spec)
+        end, get_specs());
+  false ->
+      ok
+    end.
+
+get_specs() ->
+ok.
+
+config_reloaded() ->
+    case is_mongodb_configured() of
+  true ->
+      ejabberd:start_app(mongodb),
+      lists:foreach(
+        fun(Spec) ->
+          supervisor:start_child(?MODULE, Spec)
+        end, get_specs());
+  false ->
+      lists:foreach(
+        fun({Id, _, _, _}) ->
+          supervisor:terminate_child(?MODULE, Id),
+          supervisor:delete_child(?MODULE, Id)
+        end, supervisor:which_children(?MODULE))
+    end.
+
+is_mongodb_configured() ->
+    lists:any(fun is_mongodb_configured/1, ?MYHOSTS).
+
 is_mongodb_configured(Host) ->
-    ServerConfigured = ejabberd_config:get_option(
-			 {mongodb_server, Host},
-			 fun(_) -> true end, false),
-    PortConfigured = ejabberd_config:get_option(
-		       {mongodb_port, Host},
-		       fun(_) -> true end, false),
+    ServerConfigured = ejabberd_config:has_option({mongodb_server, Host}),
+    PortConfigured = ejabberd_config:has_option({mongodb_port, Host}),
+    StartIntervalConfigured = ejabberd_config:has_option({mongodb_start_interval, Host}),
+    PoolConfigured = ejabberd_config:has_option({mongodb_pool_size, Host}),
+    DatabaseConfigured = ejabberd_config:has_option({mongodb_database, Host}),
+    UserConfigured = ejabberd_config:has_option({mongodb_username, Host}),
+    PassConfigured = ejabberd_config:has_option({mongodb_password, Host}),
     AuthConfigured = lists:member(
-		       ejabberd_auth_mongodb,
-		       ejabberd_auth:auth_modules(Host)),
-    Modules = ejabberd_config:get_option(
-		{modules, Host},
-		fun(L) when is_list(L) -> L end, []),
-    ModuleWithMongoDBConfigured = lists:any(
-				   fun({Module, Opts}) ->
-					   gen_mod:db_type(Host, Opts, Module) == mongodb
-				   end, Modules),
-    ServerConfigured or PortConfigured
-	or AuthConfigured or ModuleWithMongoDBConfigured.
+           ejabberd_auth_mongodb,
+           ejabberd_auth:auth_modules(Host)),
+    SMConfigured = ejabberd_config:get_option({sm_db_type, Host}) == mongodb,
+    RouterConfigured = ejabberd_config:get_option({router_db_type, Host}) == mongodb,
+    ServerConfigured or PortConfigured or StartIntervalConfigured
+  or PoolConfigured or DatabaseConfigured
+  or UserConfigured or PassConfigured
+  or SMConfigured or RouterConfigured
+  or AuthConfigured.
 
 do_start() ->
     SupervisorName = ?MODULE,
@@ -129,60 +163,33 @@ init([]) ->
 		     transient, 2000, worker, [?MODULE]}
 	    end, lists:seq(1, PoolSize))}}.
 
+
 get_start_interval() ->
-    ejabberd_config:get_option(
-      mongodb_start_interval,
-      fun(N) when is_integer(N), N >= 1 -> N end,
-      ?DEFAULT_MONGODB_START_INTERVAL).
+    ejabberd_config:get_option(mongodb_start_interval, ?DEFAULT_MONGODB_START_INTERVAL).
 
 get_pool_size() ->
-    ejabberd_config:get_option(
-      mongodb_pool_size,
-      fun(N) when is_integer(N), N >= 1 -> N end,
-      ?DEFAULT_POOL_SIZE).
+    ejabberd_config:get_option(mongodb_pool_size, ?DEFAULT_POOL_SIZE).
 
 get_mongodb_server() ->
-    ejabberd_config:get_option(
-      mongodb_server,
-      fun(S) ->
-	      binary_to_list(iolist_to_binary(S))
-      end, ?DEFAULT_MONGODB_HOST).
-
-get_mongodb_database() ->
-    ejabberd_config:get_option(
-      mongodb_database,
-      fun(S) ->
-        iolist_to_binary(S)
-      end, ?DEFAULT_MONGODB_DATABASE).
-
-get_mongodb_username() ->
-    ejabberd_config:get_option(
-      mongodb_username,
-      fun(S) ->
-	      iolist_to_binary(S)
-      end, nil).
-
-get_mongodb_password() ->
-    ejabberd_config:get_option(
-      mongodb_password,
-      fun(S) ->
-	      iolist_to_binary(S)
-      end, nil).
+    ejabberd_config:get_option(mongodb_server, ?DEFAULT_MONGODB_HOST).
 
 get_mongodb_port() ->
-    ejabberd_config:get_option(
-      mongodb_port,
-      fun(P) when is_integer(P), P > 0, P < 65536 -> P end,
-      ?DEFAULT_MONGODB_PORT).
+    ejabberd_config:get_option(mongodb_port, ?DEFAULT_MONGODB_PORT).
+
+get_mongodb_database() ->
+    ejabberd_config:get_option(mongodb_database, ?DEFAULT_MONGODB_DATABASE).
+
+get_mongodb_username() ->
+    ejabberd_config:get_option(mongodb_username, nil).
+
+get_mongodb_password() ->
+    ejabberd_config:get_option(mongodb_password, nil).
 
 get_pids() ->
     [ejabberd_mongodb:get_proc(I) || I <- lists:seq(1, get_pool_size())].
 
 get_random_pid() ->
-    get_random_pid(p1_time_compat:monotonic_time()).
-
-get_random_pid(Term) ->
-    I = erlang:phash2(Term, get_pool_size()) + 1,
+    I = randoms:round_robin(get_pool_size()) + 1,
     ejabberd_mongodb:get_proc(I).
 
 transform_options(Opts) ->
@@ -193,17 +200,30 @@ transform_options({mongodb_server, {S, P}}, Opts) ->
 transform_options(Opt, Opts) ->
     [Opt|Opts].
 
-opt_type(modules) -> fun (L) when is_list(L) -> L end;
+-spec opt_type(mongodb_pool_size) -> fun((pos_integer()) -> pos_integer());
+        (mongodb_port) -> fun((0..65535) -> 0..65535);
+        (mongodb_server) -> fun((binary()) -> binary());
+        (mongodb_start_interval) -> fun((pos_integer()) -> pos_integer());
+        (mongodb_database) -> fun((binary()) -> binary());
+        (mongodb_username) -> fun((binary()) -> binary());
+        (mongodb_password) -> fun((binary()) -> binary());
+        (atom()) -> [atom()].
+
 opt_type(mongodb_pool_size) ->
     fun (N) when is_integer(N), N >= 1 -> N end;
-opt_type(mongodb_port) -> fun (_) -> true end;
-opt_type(mongodb_server) -> fun (_) -> true end;
+opt_type(mongodb_port) ->
+    fun(P) when is_integer(P), P > 0, P < 65536 -> P end;
+opt_type(mongodb_server) ->
+    fun(S) -> binary_to_list(iolist_to_binary(S)) end;
 opt_type(mongodb_start_interval) ->
     fun (N) when is_integer(N), N >= 1 -> N end;
-opt_type(mongodb_database) -> fun(B) when is_binary(B) -> B end;
-opt_type(mongodb_username) -> fun(B) when is_binary(B) -> B end;
-opt_type(mongodb_password) -> fun(B) when is_binary(B) -> B end;
+opt_type(mongodb_database) ->
+    fun(S) -> iolist_to_binary(S) end;
+opt_type(mongodb_username) ->
+    fun(S) -> iolist_to_binary(S) end;
+opt_type(mongodb_password) ->
+    fun(S) -> iolist_to_binary(S) end;
 opt_type(_) ->
-    [modules, mongodb_pool_size, mongodb_port, mongodb_server,
+    [mongodb_pool_size, mongodb_port, mongodb_server,
      mongodb_start_interval, mongodb_database, 
      mongodb_username, mongodb_password].
