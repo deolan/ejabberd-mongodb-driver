@@ -33,15 +33,15 @@
 -behaviour(ejabberd_auth).
 
 %% External exports
--export([start/1, set_password/3, check_password/4,
+-export([start/1, stop/1, set_password/3, check_password/4,
    check_password/6, try_register/3,
    dirty_get_registered_users/0, get_vh_registered_users/1,
    get_vh_registered_users/2,
    get_vh_registered_users_number/1,
    get_vh_registered_users_number/2, get_password/2,
    get_password_s/2, is_user_exists/2, remove_user/2,
-   remove_user/3, store_type/0, export/1, import/2,
-   plain_password_required/0, opt_type/1]).
+   remove_user/3, store_type/1, export/1, import/2,
+   plain_password_required/1, opt_type/1]).
 -export([passwd_schema/0]).
 
 -include("ejabberd.hrl").
@@ -56,17 +56,14 @@
 start(_Host) ->
     ok.
 
-plain_password_required() ->
-    case is_scrammed() of
-      false -> false;
-      true -> true
-    end.
+stop(_Host) ->
+    ok.
 
-store_type() ->
-    case is_scrammed() of
-      false -> plain; %% allows: PLAIN DIGEST-MD5 SCRAM
-      true -> scram %% allows: PLAIN SCRAM
-    end.
+plain_password_required(Server) ->
+    store_type(Server) == scram.
+
+store_type(Server) ->
+    ejabberd_auth:password_format(Server).
 
 passwd_schema() ->
     {record_info(fields, passwd), #passwd{}}.
@@ -99,7 +96,7 @@ check_password(User, AuthzId, Server, Password) ->
             end,
             case ServerKey of
               <<"">> -> StoredKey /= <<"">>;
-              Val -> is_password_scram_valid(Password, #scram{storedkey = StoredKey,
+              _Val -> is_password_scram_valid(Password, #scram{storedkey = StoredKey,
                                        serverkey = ServerKey,
                                        salt = Salt,
                                        iterationcount = IterationCount})
@@ -139,7 +136,7 @@ check_password(User, AuthzId, Server, Password, Digest,
                 if DigRes -> true;
                   true -> (StoredKey == Password) and (Password /= <<"">>)
                 end;
-              Val -> 
+              _Val -> 
                 Passwd = jlib:decode_base64(StoredKey),
                 DigRes = if Digest /= <<"">> ->
                   Digest == DigestGen(Passwd);
@@ -178,7 +175,7 @@ set_password(User, Server, Password) ->
                    Command = #{<<"$set">> => #{<<"password">> => Password}}
                 end,
             case ejabberd_mongodb:update(passwd, Map, Command) of
-              {ok, V1} ->
+              {ok, _V} ->
                 ok;
               error ->
                 {error, error};
@@ -213,7 +210,7 @@ try_register(User, Server, Password) ->
                    Map = #{<<"us">> => SJID, <<"password">> => Password}
                 end,
             case ejabberd_mongodb:insert_one(passwd, Map) of
-            {ok, N, Id} ->
+            {ok, _N, _Id} ->
               {atomic, ok};
             error ->
               {atomic, error}
@@ -264,7 +261,7 @@ get_password(User, Server) ->
             {ok, PassObj} ->
               StoredKey = case maps:get(<<"password">>, PassObj, <<"">>) of 
                 {badmap, _} -> <<"">>;
-                ValP -> ValP
+                ValP -> {ok, ValP}
               end,
               case is_scrammed() of
                 true ->
@@ -288,9 +285,9 @@ get_password(User, Server) ->
                   StoredKey
               end;
           error ->
-              false;
+              error;
           not_found ->
-              false
+              error
           end
     end.
 
