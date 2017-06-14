@@ -289,15 +289,12 @@ count(Col, Sel) ->
 %%%===================================================================
 %% @private
 init([Server, Port, Database, Options]) ->
-    ?INFO_MSG("!!! 000 ~p ~p ~p ", [Server, Port, Database]),
     Opts = [{database, Database}, {host, Server}, {port, Port}] ++ Options,
     case mc_worker_api:connect(Opts) of
         {ok, Pid} ->
-            ?INFO_MSG("!!! 001 ~p", [Server]),
             erlang:monitor(process, Pid),
             {ok, #state{pid = Pid}};
         Err ->
-            ?INFO_MSG("!!! 002 ~p", [Err]),
             {stop, Err}
     end.
 
