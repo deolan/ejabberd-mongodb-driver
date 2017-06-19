@@ -28,11 +28,11 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/6, get_proc/1]).
+-export([start_link/6, get_proc/1, is_connected/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3, is_connected/0]).
+         terminate/2, code_change/3]).
 
 -export([insert_one/2, insert/2, find_one/2, find/2, 
   update_one/3, update/3, delete_one/2, delete/2, count/2]).
@@ -67,7 +67,7 @@ is_connected() ->
 
 %% @private
 get_proc(I) ->
-    jlib:binary_to_atom(
+    misc:binary_to_atom(
       iolist_to_binary(
 	[atom_to_list(?MODULE), $_, integer_to_list(I)])).
 
@@ -94,7 +94,7 @@ insert_one(Col, Obj) ->
             {badkey, Key} ->
               ?DEBUG("Insert operation is failed: Key ~p doesn\'t exist ~n", [Key]),
               error;
-            {Val} ->
+            {_Val} ->
               case Number of 
                 1 -> {ok, Number, Status};
                 _ -> error
@@ -144,7 +144,7 @@ find_one(Col, Sel) ->
             {badkey, Key} ->
               ?DEBUG("Find operation is failed: Key ~p doesn\'t exist ~n", [Key]),
               error;
-            {Val} ->
+            {_Val} ->
               {ok, Status}
           end;
         true ->
