@@ -4,7 +4,7 @@
 %%% Purpose : Authentification via MongoDB
 %%% Created : 12 Nov 2016 by Andrei Leontev <andrei.leontev@protonmail.ch>
 %%%
-%%% Copyright (C) 2016    Andrei Leontev
+%%% Copyright Andrei Leontev (C) 2017 
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -23,6 +23,7 @@
 %%%----------------------------------------------------------------------
 
 -module(ejabberd_oauth_mongodb).
+-behaviour(ejabberd_oauth).
 
 -export([init/0,
          store/1,
@@ -31,7 +32,7 @@
 
 -include("ejabberd_oauth.hrl").
 -include("ejabberd.hrl").
--include("jlib.hrl").
+-include("jid.hrl").
 -include("logger.hrl").
 
 init() ->
@@ -39,14 +40,14 @@ init() ->
 
 store(R) ->
     {User, Server} = R#oauth_token.us,
-    SJID = jid:to_string({User, Server, <<"">>}),
+    SJID = jid:encode({User, Server, <<"">>}),
     Map = #{<<"token">> => R#oauth_token.token, <<"us">> => SJID, 
             <<"scope">> => str:join(R#oauth_token.scope, <<" ">>), <<"expire">> => R#oauth_token.expire},
     case ejabberd_mongodb:insert_one(oauth_token, Map) of 
         {ok, _N, _Id} ->
             ok;
         error ->
-            {error, <<"Error during an element insertion">>}
+            {error, db_failure}
         end.
 
 lookup(Token) ->
@@ -69,28 +70,29 @@ lookup(Token) ->
             {badmap, _} -> <<"">>;
             ValE -> ValE
             end,
-            JID = jid:from_string(SJID),
+            JID = jid:decode(SJID),
             US = {JID#jid.luser, JID#jid.lserver},
-            #oauth_token{token = Token,
+            {ok, #oauth_token{token = Token,
                          us = US,
                          scope = str:tokens(Scope, <<" ">>),
-                         expire = Expire};
+                         expire = Expire}};
         error ->
-            {error, <<"Error during an element searching">>};
+            error;
         not_found ->
-            {error, notfound}
+            error;
+        _ ->
+            error
         end.
 
 clean(TS) ->
     Map = #{<<"expire">> => #{<<"$le">> => TS}},
     case ejabberd_mongodb:delete(oauth_token, Map) of
-       {ok, Val} ->
+       {ok, _} ->
            ok;
        error ->
            error;
        not_found ->
            ok;
-       Val ->
-           ok  
+       _ ->
+           ok
        end.
-    
