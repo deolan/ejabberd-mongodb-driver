@@ -77,15 +77,16 @@ set_password(User, Server, Password) ->
     end.
 
 try_register(User, Server, Password) ->
-    SJID = jid:to_string({User, Server, <<"">>}),
     if is_record(Password, scram) ->
-      Map = #{<<"us">> => SJID,
+      Map = #{<<"username">> => User,
+              <<"server_host">> => Server,
               <<"password">> => Password#scram.storedkey,
               <<"serverkey">> => Password#scram.serverkey,
               <<"salt">> => Password#scram.salt,
               <<"iterationcount">> => Password#scram.iterationcount};
     true ->
-      Map = #{<<"us">> => SJID, <<"password">> => Password}
+      Map = #{<<"username">> => User, <<"server_host">> => Server, 
+              <<"password">> => Password}
     end,
     case ejabberd_mongodb:insert_one(passwd, Map) of
       {ok, _N, _Id} ->
@@ -101,13 +102,12 @@ count_users(_Server, _) ->
     0.
 
 get_password(User, Server) ->
-    SJID = jid:to_string({User, Server, <<"">>}),
-    Map = #{<<"us">> => SJID},
+    Map = #{<<"username">> => User, <<"server_host">> => Server},
     case ejabberd_mongodb:find_one(passwd, Map) of
     {ok, PassObj} ->
         StoredKeyT = case maps:get(<<"password">>, PassObj, <<"">>) of 
           {badmap, _} -> <<"">>;
-          ValP -> {ok, ValP}
+          ValP -> ValP
         end,
         ServerKeyT = case maps:get(<<"serverkey">>, PassObj, <<"">>) of 
           {badmap, _} -> <<"">>;
@@ -128,9 +128,7 @@ get_password(User, Server) ->
               {ok, #scram{storedkey = StoredKey,
               serverkey = ServerKey,
               salt = Salt,
-              iterationcount = IterationCount}};
-          _ ->
-              error
+              iterationcount = IterationCount}}
           end;
     error ->
         error;
@@ -139,8 +137,7 @@ get_password(User, Server) ->
     end.
 
 remove_user(User, Server) ->
-    SJID = jid:to_string({User, Server, <<"">>}),
-    Map = #{<<"us">> => SJID},    
+    Map = #{<<"username">> => User, <<"server_host">> => Server},    
     case ejabberd_mongodb:delete(passwd, Map) of
        {ok, _Val} ->
            ok;
@@ -152,7 +149,7 @@ remove_user(User, Server) ->
            {error, db_failure}  
        end.
 
-convert_to_scram(Server) ->
+convert_to_scram(_Server) ->
   ok.
 
 export(_Server) ->
