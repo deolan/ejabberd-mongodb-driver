@@ -28,7 +28,6 @@
 -author('andrei.leontev@protonmail.ch').
 
 -behaviour(ejabberd_auth).
--behaviour(ejabberd_config).
 
 %% External exports
 -export([start/1, stop/1, set_password/3, try_register/3,
@@ -154,3 +153,4 @@ convert_to_scram(_Server) ->
 
 export(_Server) ->
 [].
+
