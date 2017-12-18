@@ -94,11 +94,20 @@ try_register(User, Server, Password) ->
         {error, db_failure}
     end.
 
-get_users(_Server, _) ->
-    [].
+get_users(Server, _Opts) ->
+    Map = #{<<"server_host">> => Server},
+    case ejabberd_mongodb:find(passwd, Map) of
+      {ok, UsersObj} -> [];
+      _ -> []
+    end.
 
-count_users(_Server, _) ->
-    0.
+count_users(Server, _Opts) ->
+    Map = #{<<"server_host">> => Server},
+    case ejabberd_mongodb:count(passwd, Map) of
+      {ok, Res} ->
+          Res;
+      _ -> 0
+    end.
 
 get_password(User, Server) ->
     Map = #{<<"username">> => User, <<"server_host">> => Server},
