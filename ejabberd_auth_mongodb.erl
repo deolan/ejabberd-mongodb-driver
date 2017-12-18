@@ -89,9 +89,9 @@ try_register(User, Server, Password) ->
     end,
     case ejabberd_mongodb:insert_one(passwd, Map) of
       {ok, _N, _Id} ->
-        {atomic, ok};
+        ok;
       error ->
-        {error, db_failure}
+        {error, exists}
     end.
 
 get_users(Server, _Opts) ->
