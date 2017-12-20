@@ -32,13 +32,11 @@
 %% External exports
 -export([start/1, stop/1, set_password/3, try_register/3,
    get_users/2, count_users/2, get_password/2, remove_user/2, 
-   store_type/1, export/1, convert_to_scram/1, plain_password_required/1]).
+   store_type/1, convert_to_scram/1, plain_password_required/1]).
 
 -include("ejabberd.hrl").
 -include("logger.hrl").
 -include("ejabberd_auth.hrl").
-
--define(SALT_LENGTH, 16).
 
 start(_Host) ->
     ok.
@@ -97,7 +95,19 @@ try_register(User, Server, Password) ->
 get_users(Server, _Opts) ->
     Map = #{<<"server_host">> => Server},
     case ejabberd_mongodb:find(passwd, Map) of
-      {ok, UsersObj} -> [];
+      {ok, UsersObj} -> 
+          F = fun(V, Acc) ->
+            U = case maps:get(<<"username">>, V, <<"">>) of 
+              {badmap, _} -> <<"">>;
+              ValU -> ValU
+            end,
+            S = case maps:get(<<"server_host">>, V, <<"">>) of 
+              {badmap, _} -> <<"">>;
+              ValS -> ValS
+            end,
+            [{U, S}|Acc]
+          end,
+          lists:foldl(F, [], UsersObj);
       _ -> []
     end.
 
@@ -159,7 +169,3 @@ remove_user(User, Server) ->
 
 convert_to_scram(_Server) ->
   ok.
-
-export(_Server) ->
-[].
-
